@@ -120,6 +120,10 @@ pub struct Componentize {
     #[arg(short = 'o', long, default_value = "index.wasm")]
     pub output: PathBuf,
 
+    /// Adapter to use
+    #[arg(short = 'a', long, default_value = "reactor")]
+    pub adapter: String,
+
     /// If set, replace all WASI imports with trapping stubs.
     ///
     /// PLEASE NOTE: This has the effect of baking whatever PRNG seed is generated at build time into the
@@ -200,6 +204,7 @@ fn componentize(common: Common, componentize: Componentize) -> Result<()> {
         &componentize.app_name,
         &componentize.output,
         None,
+        componentize.adapter,
         componentize.stub_wasi,
         &common
             .import_interface_name
@@ -459,6 +464,7 @@ class Bindings(bindings.Bindings):
             module_worlds: vec![],
             output: out_dir.path().join("app.wasm"),
             stub_wasi: false,
+            adapter: "reactor".into(),
         };
         componentize(common, componentize_opts)
     }

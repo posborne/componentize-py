@@ -1,10 +1,8 @@
-use std::io::Cursor;
-
 use anyhow::Result;
 
 use crate::Library;
 
-pub fn link_libraries(libraries: &[Library]) -> Result<Vec<u8>> {
+pub fn link_libraries(libraries: &[Library], adapter: String) -> Result<Vec<u8>> {
     let mut linker = wit_component::Linker::default()
         .validate(true)
         .use_built_in_libdl(true);
@@ -18,13 +16,14 @@ pub fn link_libraries(libraries: &[Library]) -> Result<Vec<u8>> {
         linker = linker.library(name, module, *dl_openable)?;
     }
 
-    linker = linker.adapter(
-        "wasi_snapshot_preview1",
-        &zstd::decode_all(Cursor::new(include_bytes!(concat!(
-            env!("OUT_DIR"),
-            "/wasi_snapshot_preview1.reactor.wasm.zst"
-        ))))?,
-    )?;
+    let adapter_module = match adapter.as_str() {
+        "proxy" => wasi_preview1_component_adapter_provider::WASI_SNAPSHOT_PREVIEW1_PROXY_ADAPTER,
+        "reactor" => {
+            wasi_preview1_component_adapter_provider::WASI_SNAPSHOT_PREVIEW1_REACTOR_ADAPTER
+        }
+        _ => panic!("Adapater {adapter} not supported"),
+    };
+    linker = linker.adapter("wasi_snapshot_preview1", adapter_module)?;
 
     linker.encode().map_err(|e| anyhow::anyhow!(e))
 }

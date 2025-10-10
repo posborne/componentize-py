@@ -17,7 +17,7 @@ use {
 #[allow(clippy::too_many_arguments)]
 #[pyo3::pyfunction]
 #[pyo3(name = "componentize")]
-#[pyo3(signature = (wit_path, world, features, all_features, world_module, python_path, module_worlds, app_name, output_path, stub_wasi, import_interface_names, export_interface_names))]
+#[pyo3(signature = (wit_path, world, features, all_features, world_module, python_path, module_worlds, app_name, output_path, adapter, stub_wasi, import_interface_names, export_interface_names))]
 fn python_componentize(
     wit_path: Vec<PathBuf>,
     world: Option<&str>,
@@ -28,6 +28,7 @@ fn python_componentize(
     module_worlds: Vec<(PyBackedStr, PyBackedStr)>,
     app_name: &str,
     output_path: PathBuf,
+    adapter: String,
     stub_wasi: bool,
     import_interface_names: Vec<(PyBackedStr, PyBackedStr)>,
     export_interface_names: Vec<(PyBackedStr, PyBackedStr)>,
@@ -47,6 +48,7 @@ fn python_componentize(
             app_name,
             &output_path,
             None,
+            adapter,
             stub_wasi,
             &import_interface_names
                 .iter()

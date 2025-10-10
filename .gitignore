@@ -19,3 +19,7 @@ examples/cli/command
 examples/sandbox/sandbox
 examples/sandbox/sandbox.wasm
 wasi-sdk
+.envrc
+flake.nix
+.direnv
+.rustup

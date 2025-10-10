@@ -77,6 +77,7 @@ async fn make_component(
         "app",
         &tempdir.path().join("app.wasm"),
         add_to_linker,
+        "reactor".into(),
         false,
         &HashMap::new(),
         &HashMap::new(),
