@@ -59,7 +59,7 @@ pub struct Ctx {
 }
 
 pub struct Library {
-    name: String,
+    pub name: String,
     module: Vec<u8>,
     dl_openable: bool,
 }
@@ -336,16 +336,38 @@ pub async fn componentize(
         &export_interface_names,
     )?;
 
+    let mut wasi_imports = std::collections::HashSet::new();
+    for imported_iface in summary.imported_interfaces.values() {
+        if let Some(pkg) = imported_iface.package.as_ref() {
+            if pkg.namespace == "wasi" {
+                let name = format!("{}:{}/{}", pkg.namespace, pkg.name, imported_iface.name);
+                wasi_imports.insert(name);
+            }
+        }
+    }
+
+    println!("WASI Imports from Target World:");
+    for wimport in wasi_imports.iter() {
+        println!("- {}", wimport);
+    }
+
     libraries.push(Library {
         name: "libcomponentize_py_bindings.so".into(),
         module: bindings::make_bindings(&resolve, &worlds, &summary)?,
         dl_openable: false,
     });
 
-    let component = link::link_libraries(&libraries, adapter)?;
+    // Filter unwanted WASI imports from library modules before linking
+    let filtered_libraries = if stub_wasi {
+        stubwasi::filter_library_imports(libraries, &wasi_imports)?
+    } else {
+        libraries
+    };
+
+    let component = link::link_libraries(&filtered_libraries, &adapter)?;
 
     let stubbed_component = if stub_wasi {
-        stubwasi::link_stub_modules(libraries)?
+        stubwasi::link_stub_modules(filtered_libraries, &wasi_imports, &adapter)?
     } else {
         None
     };

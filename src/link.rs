@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::Library;
 
-pub fn link_libraries(libraries: &[Library], adapter: String) -> Result<Vec<u8>> {
+pub fn link_libraries(libraries: &[Library], adapter: &str) -> Result<Vec<u8>> {
     let mut linker = wit_component::Linker::default()
         .validate(true)
         .use_built_in_libdl(true);
@@ -16,7 +16,7 @@ pub fn link_libraries(libraries: &[Library], adapter: String) -> Result<Vec<u8>>
         linker = linker.library(name, module, *dl_openable)?;
     }
 
-    let adapter_module = match adapter.as_str() {
+    let adapter_module = match adapter {
         "proxy" => wasi_preview1_component_adapter_provider::WASI_SNAPSHOT_PREVIEW1_PROXY_ADAPTER,
         "reactor" => {
             wasi_preview1_component_adapter_provider::WASI_SNAPSHOT_PREVIEW1_REACTOR_ADAPTER

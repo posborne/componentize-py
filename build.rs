@@ -27,16 +27,29 @@ const CLANG_EXECUTABLE: &str = "clang.exe";
 #[cfg(not(target_os = "windows"))]
 const CLANG_EXECUTABLE: &str = "clang";
 
+macro_rules! dprintln {
+    ($($arg:tt)*) => {
+        // This arm is compiled only in debug builds
+        #[cfg(debug_assertions)]
+        if false {
+            println!("cargo:warning=BUILD DIAGNOSTIC: {}", format_args!($($arg)*));
+        }
+
+        // This arm is compiled only in non-debug (release) builds
+        #[cfg(not(debug_assertions))]
+        // The 'if false' block is never executed, but the compiler still
+        // checks it, which "uses" the arguments and prevents warnings.
+        if false { let _ = format_args!($($arg)*); }
+    };
+}
+
 fn main() -> Result<()> {
     println!("cargo:rerun-if-changed=build.rs");
 
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: OUT_DIR = {}",
-        out_dir.display()
-    );
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: Current working directory = {}",
+    dprintln!("OUT_DIR = {}", out_dir.display());
+    dprintln!(
+        "Current working directory = {}",
         env::current_dir().unwrap().display()
     );
 
@@ -44,10 +57,10 @@ fn main() -> Result<()> {
         || env::var("CLIPPY_ARGS").is_ok()
         || env::var("CARGO_EXPAND_NO_RUN_NIGHTLY").is_ok()
     {
-        println!("cargo:warning=BUILD DIAGNOSTIC: Using stubs for clippy");
+        dprintln!("Using stubs for clippy");
         stubs_for_clippy(&out_dir)
     } else {
-        println!("cargo:warning=BUILD DIAGNOSTIC: Running full build (package_all_the_things)");
+        dprintln!("Running full build (package_all_the_things)");
         package_all_the_things(&out_dir)
     }?;
 
@@ -57,7 +70,7 @@ fn main() -> Result<()> {
 }
 
 fn stubs_for_clippy(out_dir: &Path) -> Result<()> {
-    println!(
+    dprintln!(
         "cargo:warning=using stubbed runtime, core library, and adapter for static analysis purposes..."
     );
 
@@ -102,59 +115,35 @@ fn stubs_for_clippy(out_dir: &Path) -> Result<()> {
 
 fn package_all_the_things(out_dir: &Path) -> Result<()> {
     let repo_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: CARGO_MANIFEST_DIR = {}",
-        repo_dir.display()
-    );
+    dprintln!("CARGO_MANIFEST_DIR = {}", repo_dir.display());
 
     let wasi_sdk =
         PathBuf::from(env::var_os("WASI_SDK_PATH").unwrap_or_else(|| "/opt/wasi-sdk".into()));
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: WASI_SDK_PATH = {}",
-        wasi_sdk.display()
-    );
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: WASI SDK exists: {}",
-        wasi_sdk.exists()
-    );
+    dprintln!("WASI_SDK_PATH = {}", wasi_sdk.display());
+    dprintln!("WASI SDK exists: {}", wasi_sdk.exists());
 
-    println!("cargo:warning=BUILD DIAGNOSTIC: About to call maybe_make_cpython");
+    dprintln!("About to call maybe_make_cpython");
     maybe_make_cpython(&repo_dir, &wasi_sdk)?;
-    println!("cargo:warning=BUILD DIAGNOSTIC: maybe_make_cpython completed successfully");
+    dprintln!("maybe_make_cpython completed successfully");
 
     let cpython_wasi_dir = repo_dir.join("cpython/builddir/wasi");
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: cpython_wasi_dir = {}",
-        cpython_wasi_dir.display()
-    );
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: cpython_wasi_dir exists: {}",
-        cpython_wasi_dir.exists()
-    );
+    dprintln!("cpython_wasi_dir = {}", cpython_wasi_dir.display());
+    dprintln!("cpython_wasi_dir exists: {}", cpython_wasi_dir.exists());
 
-    println!("cargo:warning=BUILD DIAGNOSTIC: About to call make_pyo3_config");
+    dprintln!("About to call make_pyo3_config");
     make_pyo3_config(&repo_dir)?;
-    println!("cargo:warning=BUILD DIAGNOSTIC: make_pyo3_config completed successfully");
+    dprintln!("make_pyo3_config completed successfully");
 
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: NIGHTLY_TOOLCHAIN env var = {:?}",
+    dprintln!(
+        "NIGHTLY_TOOLCHAIN env var = {:?}",
         env::var("NIGHTLY_TOOLCHAIN")
     );
     let nightly_toolchain = env::var("NIGHTLY_TOOLCHAIN").unwrap_or_else(|_| "nightly".to_string());
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: nightly_toolchain = {}",
-        nightly_toolchain
-    );
+    dprintln!("nightly_toolchain = {}", nightly_toolchain);
 
     let runtime_dir = repo_dir.join("runtime");
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: runtime directory = {}",
-        runtime_dir.display()
-    );
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: runtime directory exists: {}",
-        runtime_dir.exists()
-    );
+    dprintln!("runtime directory = {}", runtime_dir.display());
+    dprintln!("runtime directory exists: {}", runtime_dir.exists());
 
     // Try multiple approaches to use nightly Rust, in order of preference:
     // 1. Use rustup run nightly (most reliable for standard environments)
@@ -168,7 +157,7 @@ fn package_all_the_things(out_dir: &Path) -> Result<()> {
         .output()
         .is_ok()
     {
-        println!("cargo:warning=BUILD DIAGNOSTIC: Using rustup run nightly");
+        dprintln!("Using rustup run nightly");
         ("rustup".to_string(), true)
     } else if let Some(nix_nightly_path) = env::var("PATH")
         .unwrap_or_default()
@@ -178,13 +167,10 @@ fn package_all_the_things(out_dir: &Path) -> Result<()> {
         })
         .map(|path| format!("{}/cargo", path))
     {
-        println!(
-            "cargo:warning=BUILD DIAGNOSTIC: Using Nix nightly cargo: {}",
-            nix_nightly_path
-        );
+        dprintln!("Using Nix nightly cargo: {}", nix_nightly_path);
         (nix_nightly_path, false)
     } else {
-        println!("cargo:warning=BUILD DIAGNOSTIC: Using cargo with RUSTUP_TOOLCHAIN fallback");
+        dprintln!("Using cargo with RUSTUP_TOOLCHAIN fallback");
         ("cargo".to_string(), false)
     };
 
@@ -211,10 +197,7 @@ fn package_all_the_things(out_dir: &Path) -> Result<()> {
         c
     };
 
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: Original PATH = {:?}",
-        env::var("PATH")
-    );
+    dprintln!("Original PATH = {:?}", env::var("PATH"));
 
     for (key, _) in env::vars_os() {
         if key
@@ -222,10 +205,7 @@ fn package_all_the_things(out_dir: &Path) -> Result<()> {
             .map(|k| (k.starts_with("RUST") || k.starts_with("CARGO")) && k != "RUSTUP_HOME")
             .unwrap_or(false)
         {
-            println!(
-                "cargo:warning=BUILD DIAGNOSTIC: Removing RUST/CARGO env var: {:?}",
-                key.to_str()
-            );
+            dprintln!("Removing RUST/CARGO env var: {:?}", key.to_str());
             cmd.env_remove(&key);
         }
     }
@@ -242,10 +222,7 @@ fn package_all_the_things(out_dir: &Path) -> Result<()> {
         cmd.env("RUSTUP_TOOLCHAIN", "nightly");
     }
 
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: About to run rustup command: {:?}",
-        cmd
-    );
+    dprintln!("About to run rustup command: {:?}", cmd);
 
     // Also try to run rustc directly to see what version it reports
     let rustc_check = if use_rustup_run {
@@ -263,60 +240,42 @@ fn package_all_the_things(out_dir: &Path) -> Result<()> {
         })
         .map(|path| format!("{}/rustc", path))
     {
-        println!(
-            "cargo:warning=BUILD DIAGNOSTIC: Using Nix rustc: {}",
-            nix_nightly_path
-        );
+        dprintln!("Using Nix rustc: {}", nix_nightly_path);
         Command::new(&nix_nightly_path).arg("--version").output()
     } else {
-        println!("cargo:warning=BUILD DIAGNOSTIC: Using rustc with RUSTUP_TOOLCHAIN=nightly");
+        dprintln!("Using rustc with RUSTUP_TOOLCHAIN=nightly");
         let mut c = Command::new("rustc");
         c.arg("--version").env("RUSTUP_TOOLCHAIN", "nightly");
         c.output()
     };
 
     if let Ok(output) = rustc_check {
-        println!(
-            "cargo:warning=BUILD DIAGNOSTIC: rustc version check: {}",
+        dprintln!(
+            "rustc version check: {}",
             String::from_utf8_lossy(&output.stdout)
         );
         if !output.status.success() {
-            println!(
-                "cargo:warning=BUILD DIAGNOSTIC: rustc version check failed: {}",
+            dprintln!(
+                "rustc version check failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             );
         }
     }
     let status = cmd.status().context("Failed to execute rustup command")?;
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: rustup command exit status: {:?}",
-        status
-    );
+    dprintln!("rustup command exit status: {:?}", status);
     if !status.success() {
         bail!("rustup command failed with status: {:?}", status);
     }
-    println!("cargo:rerun-if-changed=runtime");
+    dprintln!("cargo:rerun-if-changed=runtime");
 
     let path = out_dir.join("wasm32-wasip1/release/libcomponentize_py_runtime.a");
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: Looking for runtime library at: {}",
-        path.display()
-    );
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: Runtime library exists: {}",
-        path.exists()
-    );
+    dprintln!("Looking for runtime library at: {}", path.display());
+    dprintln!("Runtime library exists: {}", path.exists());
 
     if path.exists() {
         let clang = wasi_sdk.join(format!("bin/{CLANG_EXECUTABLE}"));
-        println!(
-            "cargo:warning=BUILD DIAGNOSTIC: Looking for clang at: {}",
-            clang.display()
-        );
-        println!(
-            "cargo:warning=BUILD DIAGNOSTIC: Clang exists: {}",
-            clang.exists()
-        );
+        dprintln!("Looking for clang at: {}", clang.display());
+        dprintln!("Clang exists: {}", clang.exists());
         if clang.exists() {
             let name = "libcomponentize_py_runtime.so";
 
@@ -360,14 +319,8 @@ fn package_all_the_things(out_dir: &Path) -> Result<()> {
     compress(&cpython_wasi_dir, "libpython3.14.so", out_dir, true)?;
 
     let path = repo_dir.join("cpython/builddir/wasi/install/lib/python3.14");
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: Looking for python3.12 lib dir at: {}",
-        path.display()
-    );
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: python3.12 lib dir exists: {}",
-        path.exists()
-    );
+    dprintln!("Looking for python3.12 lib dir at: {}", path.display());
+    dprintln!("python3.12 lib dir exists: {}", path.exists());
 
     if path.exists() {
         let mut builder = Builder::new(Encoder::new(
@@ -383,14 +336,8 @@ fn package_all_the_things(out_dir: &Path) -> Result<()> {
     }
 
     let path = repo_dir.join("bundled");
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: Looking for bundled dir at: {}",
-        path.display()
-    );
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: bundled dir exists: {}",
-        path.exists()
-    );
+    dprintln!("Looking for bundled dir at: {}", path.display());
+    dprintln!("bundled dir exists: {}", path.exists());
 
     if path.exists() {
         let mut builder = Builder::new(Encoder::new(
@@ -410,31 +357,22 @@ fn package_all_the_things(out_dir: &Path) -> Result<()> {
 
 fn compress(src_dir: &Path, name: &str, dst_dir: &Path, rerun_if_changed: bool) -> Result<()> {
     let path = src_dir.join(name);
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: compress called for {} in {} -> {}",
+    dprintln!(
+        "compress called for {} in {} -> {}",
         name,
         src_dir.display(),
         dst_dir.display()
     );
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: compress source path: {}",
-        path.display()
-    );
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: compress source exists: {}",
-        path.exists()
-    );
+    dprintln!("compress source path: {}", path.display());
+    dprintln!("compress source exists: {}", path.exists());
 
     if rerun_if_changed {
-        println!("cargo:rerun-if-changed={}", path.to_str().unwrap());
+        dprintln!("cargo:rerun-if-changed={}", path.to_str().unwrap());
     }
 
     if path.exists() {
         let dest_path = dst_dir.join(format!("{name}.zst"));
-        println!(
-            "cargo:warning=BUILD DIAGNOSTIC: compress destination: {}",
-            dest_path.display()
-        );
+        dprintln!("compress destination: {}", dest_path.display());
 
         let mut encoder = Encoder::new(
             File::create(&dest_path).with_context(|| {
@@ -448,14 +386,11 @@ fn compress(src_dir: &Path, name: &str, dst_dir: &Path, rerun_if_changed: bool) 
             &mut encoder,
         )?;
         encoder.do_finish()?;
-        println!(
-            "cargo:warning=BUILD DIAGNOSTIC: compress completed successfully for {}",
-            name
-        );
+        dprintln!("compress completed successfully for {}", name);
         Ok(())
     } else {
-        println!(
-            "cargo:warning=BUILD DIAGNOSTIC: compress FAILED - source file does not exist: {}",
+        dprintln!(
+            "compress FAILED - source file does not exist: {}",
             path.display()
         );
         Err(anyhow!("no such file: {}", path.display()))
@@ -473,7 +408,7 @@ fn include(path: &Path) -> bool {
 }
 
 fn add(builder: &mut Builder<impl Write>, root: &Path, path: &Path) -> Result<()> {
-    println!("cargo:rerun-if-changed={}", path.to_str().unwrap());
+    dprintln!("cargo:rerun-if-changed={}", path.to_str().unwrap());
 
     if path.is_dir() {
         for entry in fs::read_dir(path)? {
@@ -487,8 +422,8 @@ fn add(builder: &mut Builder<impl Write>, root: &Path, path: &Path) -> Result<()
 }
 
 fn maybe_make_cpython(repo_dir: &Path, wasi_sdk: &Path) -> Result<()> {
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: maybe_make_cpython called with repo_dir={}, wasi_sdk={}",
+    dprintln!(
+        "maybe_make_cpython called with repo_dir={}, wasi_sdk={}",
         repo_dir.display(),
         wasi_sdk.display()
     );
@@ -497,25 +432,16 @@ fn maybe_make_cpython(repo_dir: &Path, wasi_sdk: &Path) -> Result<()> {
         fs::create_dir_all(&cpython_wasi_dir)?;
         if !cpython_wasi_dir.join("libpython3.14.a").exists() {
             let cpython_native_dir = repo_dir.join("cpython/builddir/build");
-            println!(
-                "cargo:warning=BUILD DIAGNOSTIC: cpython_native_dir = {}",
-                cpython_native_dir.display()
-            );
+            dprintln!("cpython_native_dir = {}", cpython_native_dir.display());
 
             let native_python = cpython_native_dir.join(PYTHON_EXECUTABLE);
-            println!(
-                "cargo:warning=BUILD DIAGNOSTIC: Looking for native python at: {}",
-                native_python.display()
-            );
-            println!(
-                "cargo:warning=BUILD DIAGNOSTIC: Native python exists: {}",
-                native_python.exists()
-            );
+            dprintln!("Looking for native python at: {}", native_python.display());
+            dprintln!("Native python exists: {}", native_python.exists());
 
             if !native_python.exists() {
                 fs::create_dir_all(&cpython_native_dir)?;
 
-                println!("Running configure for native CPython");
+                dprintln!("Running configure for native CPython");
                 run(Command::new("../../configure")
                     .current_dir(&cpython_native_dir)
                     .arg("--verbose")
@@ -524,7 +450,7 @@ fn maybe_make_cpython(repo_dir: &Path, wasi_sdk: &Path) -> Result<()> {
                         cpython_native_dir.to_str().unwrap()
                     )))?;
 
-                println!("Running make for native CPython");
+                dprintln!("Running make for native CPython");
                 run(Command::new("make")
                     .arg("V=1")
                     .current_dir(cpython_native_dir))?;
@@ -536,7 +462,7 @@ fn maybe_make_cpython(repo_dir: &Path, wasi_sdk: &Path) -> Result<()> {
             let config_guess =
                 run(Command::new("../../config.guess").current_dir(&cpython_wasi_dir))?;
 
-            println!("Running configure for wasi CPython");
+            dprintln!("Running configure for wasi CPython");
             run(Command::new("../../Tools/wasm/wasi-env")
                 .env(
                     "CONFIG_SITE",
@@ -565,14 +491,14 @@ fn maybe_make_cpython(repo_dir: &Path, wasi_sdk: &Path) -> Result<()> {
                     "--enable-ipv6",
                 ]))?;
 
-            println!("Running make install for wasi CPython");
+            dprintln!("Running make install for wasi CPython");
             run(Command::new("make")
                 .current_dir(&cpython_wasi_dir)
                 .arg("install")
                 .arg("V=1"))?;
         }
 
-        println!("Creating shared library for wasi CPython");
+        dprintln!("Creating shared library for wasi CPython");
         run(Command::new(wasi_sdk.join("bin/clang"))
             .arg("--target=wasm32-wasip2")
             .arg("-shared")
@@ -606,18 +532,9 @@ fn run(command: &mut Command) -> Result<Vec<u8>> {
         .collect::<Vec<_>>()
         .join(" ");
 
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: About to run command: {}",
-        command_string
-    );
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: Command program: {:?}",
-        command.get_program()
-    );
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: Command current_dir: {:?}",
-        command.get_current_dir()
-    );
+    dprintln!("About to run command: {}", command_string);
+    dprintln!("Command program: {:?}", command.get_program());
+    dprintln!("Command current_dir: {:?}", command.get_current_dir());
 
     let output = command.output().with_context({
         let command_string = command_string.clone();
@@ -628,18 +545,16 @@ fn run(command: &mut Command) -> Result<Vec<u8>> {
     io::stderr().write_all(&output.stderr)?;
 
     if output.status.success() {
-        println!(
-            "cargo:warning=BUILD DIAGNOSTIC: Command succeeded: {}",
-            command_string
-        );
+        dprintln!("Command succeeded: {}", command_string);
         Ok(output.stdout)
     } else {
-        println!(
-            "cargo:warning=BUILD DIAGNOSTIC: Command failed with status {:?}: {}",
-            output.status, command_string
+        dprintln!(
+            "Command failed with status {:?}: {}",
+            output.status,
+            command_string
         );
-        println!(
-            "cargo:warning=BUILD DIAGNOSTIC: Command stderr: {}",
+        dprintln!(
+            "Command stderr: {}",
             String::from_utf8_lossy(&output.stderr)
         );
         bail!(
@@ -650,19 +565,16 @@ fn run(command: &mut Command) -> Result<Vec<u8>> {
 }
 
 fn make_pyo3_config(repo_dir: &Path) -> Result<()> {
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: make_pyo3_config called with repo_dir={}",
+    dprintln!(
+        "make_pyo3_config called with repo_dir={}",
         repo_dir.display()
     );
     let out_dir = env::var("OUT_DIR")?;
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: make_pyo3_config OUT_DIR={}",
-        out_dir
-    );
+    dprintln!("make_pyo3_config OUT_DIR={}", out_dir);
 
     let mut cpython_wasi_dir = repo_dir.join("cpython/builddir/wasi");
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: make_pyo3_config cpython_wasi_dir={}",
+    dprintln!(
+        "make_pyo3_config cpython_wasi_dir={}",
         cpython_wasi_dir.display()
     );
 
@@ -680,14 +592,11 @@ fn make_pyo3_config(repo_dir: &Path) -> Result<()> {
     }
 
     let pyo3_config_source = repo_dir.join("pyo3-config.txt");
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: Reading pyo3-config.txt from: {}",
+    dprintln!(
+        "Reading pyo3-config.txt from: {}",
         pyo3_config_source.display()
     );
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: pyo3-config.txt exists: {}",
-        pyo3_config_source.exists()
-    );
+    dprintln!("pyo3-config.txt exists: {}", pyo3_config_source.exists());
 
     let mut pyo3_config = fs::read_to_string(&pyo3_config_source).with_context(|| {
         format!(
@@ -696,10 +605,7 @@ fn make_pyo3_config(repo_dir: &Path) -> Result<()> {
         )
     })?;
 
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: Original pyo3-config.txt content: {}",
-        pyo3_config.trim()
-    );
+    dprintln!("Original pyo3-config.txt content: {}", pyo3_config.trim());
 
     writeln!(
         pyo3_config,
@@ -708,10 +614,7 @@ fn make_pyo3_config(repo_dir: &Path) -> Result<()> {
     )?;
 
     let pyo3_config_dest = Path::new(&out_dir).join("pyo3-config.txt");
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: Writing pyo3-config.txt to: {}",
-        pyo3_config_dest.display()
-    );
+    dprintln!("Writing pyo3-config.txt to: {}", pyo3_config_dest.display());
 
     fs::write(&pyo3_config_dest, &pyo3_config).with_context(|| {
         format!(
@@ -720,10 +623,7 @@ fn make_pyo3_config(repo_dir: &Path) -> Result<()> {
         )
     })?;
 
-    println!(
-        "cargo:warning=BUILD DIAGNOSTIC: Final pyo3-config.txt content: {}",
-        pyo3_config.trim()
-    );
+    dprintln!("Final pyo3-config.txt content: {}", pyo3_config.trim());
 
     println!("cargo:rerun-if-changed=pyo3-config.txt");
 

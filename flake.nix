@@ -66,7 +66,7 @@
             # stable and nightly
             rustup component add --toolchain nightly rust-src
             rustup target add --toolchain nightly wasm32-unknown-unknown wasm32-wasip1
-            rustup component add rust-src
+            rustup component add rust-src rust-analyzer
             rustup target add wasm32-unknown-unknown wasm32-wasip1
 
             echo "Rust environment ready:"

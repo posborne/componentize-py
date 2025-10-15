@@ -174,9 +174,9 @@ impl MyFunction<'_> {
 
 #[derive(Copy, Clone)]
 pub struct InterfaceInfo<'a> {
-    package: Option<PackageName<'a>>,
-    name: &'a str,
-    docs: Option<&'a str>,
+    pub package: Option<PackageName<'a>>,
+    pub name: &'a str,
+    pub docs: Option<&'a str>,
 }
 
 struct FunctionCode {
